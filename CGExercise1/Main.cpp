@@ -14,6 +14,9 @@ bool mouseLeftDown, mouseRightDown, mouseMiddleDown;
 GLfloat cameraDistance = -2;
 GLfloat tx, ty, rotx, roty;
 
+GLfloat dx, dy, dz;
+GLfloat phi, delta;
+
 /* process menu option 'op' */
 void menu(int op) {
 
@@ -32,7 +35,21 @@ void keyboardDown(unsigned char key, int x, int y) {
 	case 'q':
 	case  27:   // ESC
 		exit(0);
+	case 'a': case 'A':
+		dx -= 0.1;
+		break;
+	case 'd':case 'D':
+		dx += 0.1; break;
+	case 's': case 'S':
+		dy -= 0.1; break;
+	case 'w': case 'W':
+		dy += 0.1; break;
+	case 'z': case 'Z':
+		phi += 0.5; break;
+	case 'x': case 'X':
+		delta += 0.5; break;
 	}
+	glutPostRedisplay();
 }
 
 /* executed when a regular key is released */
@@ -230,7 +247,13 @@ void display() {
 	glRotatef(ty, 0, 1, 0);
 
 	glPushMatrix();
+
+	// Transform
+	glTranslatef(dx, dy, dz);
+	glRotatef(phi, 0, 1, 0);
+	glRotatef(delta, 0, 0, 1);
 	draw();
+
 	glPopMatrix();
 	glFlush();
 	glutSwapBuffers();

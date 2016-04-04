@@ -21,8 +21,13 @@ GLfloat cameraDistance = -2;
 GLfloat tx, ty, rotx, roty;
 
 GLfloat dx, dy, dz;
+
+float deltaX, deltaY, deltaZ;
+
 GLfloat phi, delta;
 float width = 800, height = 600;
+
+int current_mesh = -1;
 
 /* Project matrix */
 glm::mat4x4 project_matrix;
@@ -145,45 +150,90 @@ void mouseClick(int button, int state, int x, int y) {
 }
 
 using namespace glm;
-void mouseClick_handler(int button, int state, int mouse_x, int mouse_y) {
+
+void ray_casting(int mouse_x, int mouse_y) {
 	float x = (2.0f * mouse_x) / width - 1.0f;
 	float y = 1.0f - (2.0f * mouse_y) / height;
 	float z = 1.0f;
 
 	vec3 ray_nds = vec3(x, y, z);
 	vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
-	
+
 	vec4 ray_eye = glm::inverse(project_matrix) * ray_clip;
 	ray_eye = vec4(ray_eye.x, ray_eye.y, -1.0f, 0.0f);
-	
+
 	vec4 _ray_wor = glm::inverse(view_matrix) * ray_eye;
 	vec3 ray_wor = glm::vec3(_ray_wor.x, _ray_wor.y, _ray_wor.z);
 	ray_wor = glm::normalize(ray_wor);
-	
-	//printf("Ray vector (%0.2f,%0.2f,%0.2f)\n", ray_wor.x, ray_wor.y, ray_wor, z);
+
 	// Camara coor
 	vec3 O = glm::vec3(0, 0, 2);
 	// check
-	for each (Mesh* mesh in objects)
+	for (int i = 0; i < objects.size(); i++)
 	{
-		BoundSphere* bs = mesh->getBoundingSphere();
-		vec3 C = glm::make_vec3(bs->centre);
-		float r = bs->radius;
+		BoundSphere* bs = objects[i]->getBoundingSphere();
+		vec3 C = vec3(objects[i]->position->x, objects[i]->position->y, objects[i]->position->z);
+		float r = objects[i]->get_BS_radius();
 		float b = glm::dot(ray_wor, (O - C));
 		float c = glm::dot(O - C, O - C) - r * r;
-		if (b * b - c >= 0)
-			printf("Collision");
+		if (b * b - c >= 0) {
+			//printf("Collision");
+			current_mesh = i;
+			printf("Clicked on object : %d\n", i);
+			break;
+		}
 	}
 }
+
+void mouseClick_handler(int button, int state, int mouse_x, int mouse_y) {
+	mouseX = mouse_x;
+	mouseY = mouse_y;
+
+	if (button == GLUT_LEFT_BUTTON)
+	{
+		if (state == GLUT_DOWN)
+		{
+			ray_casting(mouse_x, mouse_y);
+			mouseLeftDown = true;
+		}
+		else if (state == GLUT_UP) {
+			mouseLeftDown = false;
+			current_mesh = -1;
+			
+		}
+	}
+}
+
+
+
 /* executed when the mouse moves to position ('x', 'y') */
 void mouseMotion(int x, int y) {
-	if (mouseLeftDown)
-	{
-		tx += (x - mouseX);
-		ty += (y - mouseY);
+	//if (mouseLeftDown)
+	//{
+	//	tx += (x - mouseX);
+	//	ty += (y - mouseY);
+	//	mouseX = x;
+	//	mouseY = y;
+	//}
+	if (current_mesh == -1) return;
+
+	if (mouseLeftDown) {
+		deltaX += (x - mouseX);
+		deltaY += (y - mouseY);
+
+		float worldX = (2.0f * deltaX) / width - 1.0f;
+		float worldY = -(1.0f - (2.0f * deltaY) / height);
+		// Set current mesh position
+		Mesh* current = objects[current_mesh];
+		float cx = current->position->x, cy = current->position->y,
+			cz = current->position->z;
+
+		current->position->set(cx + (x - mouseX) * 0.01f, cy - (y - mouseY) * 0.01f, cz);
+
 		mouseX = x;
 		mouseY = y;
 	}
+
 	if (mouseRightDown)
 	{
 		cameraDistance += (y - mouseY) * 0.2f;
@@ -237,10 +287,15 @@ void draw() {
 
 	for (size_t i = 0; i < objects.size(); i++)
 	{
-		objects[i]->DrawColor();
+		glPushMatrix();
+		Point3* position = objects[i]->position;
+		glTranslated(position->x, position->y, position->z);
+		objects[i]->DrawWireframe();
+		glPopMatrix();
 	}
 
 	float color4[] = { 1,1,1,1 };
+	// Get drawing matrix
 	GLfloat mt[16];
 	glGetFloatv(GL_MODELVIEW_MATRIX, mt);
 	view_matrix = glm::transpose(glm::make_mat4x4(mt));
@@ -286,11 +341,8 @@ void display() {
 	glLoadIdentity();
 	gluLookAt(0, 0, 2, 0, 0, 0, 0, 1, 0);
 	
-	// Rotate and zoom the camera. This order give you maya-like control
-	//glTranslatef(0, 0, cameraDistance);
-	//glTranslatef(tx, ty, 0);
-	glRotatef(tx, 1, 0, 0);
-	glRotatef(ty, 0, 1, 0);
+	//glRotatef(tx, 1, 0, 0);
+	//glRotatef(ty, 0, 1, 0);
 
 	glPushMatrix();
 
@@ -314,8 +366,28 @@ void initGL(int width, int height) {
 	//donut.CreateDonut(1.0, 0.5);
 	cylinder.CreateCube(0.5f);
 	donut.CreateModel(2, 1, 0.5, 1);
-	donut.CreateSphere(100, 100, 1);
+	donut.CreateSphere(100, 100, 0.25);
+
+	cylinder.CreateSphere(100, 100, 0.5);
+	cylinder.position->set(0.5f, .5f, 0);
+	BoundSphere* bs = cylinder.getBoundingSphere();
+	bs->centre[0] = 0.5f;
+	bs->centre[1] = 0.5f;
 	objects.push_back(&donut);
+	objects.push_back(&cylinder);
+
+	Mesh* ms = new Mesh();
+	ms->position->set(-0.5, -0.5, 0);
+	ms->CreateSphere(100, 100, 0.6);
+	bs = cylinder.getBoundingSphere();
+	bs->centre[0] = -0.5f;
+	bs->centre[1] = -0.5f;
+	objects.push_back(ms);
+
+	ms = new Mesh();
+	ms->position->set(-0.5, 0.5, 1);
+	ms->CreateSphere(100, 100, 0.2);
+	objects.push_back(ms);
 
 	reshape(width, height);
 

@@ -43,12 +43,16 @@ class Mesh
 private:
 	BoundSphere* bound_sphere = NULL;
 
+	float _bsRadius = 0.0f;
 public:
 	int			numVerts;
 	Point3*		pt;
 	
 	int			numFaces;
 	Face*		face;
+	Point3*		position;
+
+
 public:
 	Mesh()
 	{
@@ -56,6 +60,7 @@ public:
 		pt		= NULL;
 		numFaces	= 0;
 		face		= NULL;
+		position = new Point3(0, 0, 0);
 	}
 	~Mesh()
 	{
@@ -69,6 +74,9 @@ public:
 		}
 		numVerts = 0;
 		numFaces = 0;
+
+		if (this->position != NULL)
+			delete position;
 	}
 	void CreateModel(float d, float R1, float R2, float fHeight);
 	void CreateDonut(GLfloat R, GLfloat d);
@@ -85,6 +93,8 @@ public:
 	BoundSphere* getBoundingSphere() {
 		return bound_sphere;
 	}
+
+	float get_BS_radius();
 };
 
 #endif

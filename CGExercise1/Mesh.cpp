@@ -12,9 +12,6 @@ float	ColorArr[COLORNUM][3] = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, { 0.0,  0.0, 1.
 									{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}};
 
 
-
-
-
 void Mesh::CreateCube(float	fSize)
 {
 	int i;
@@ -94,6 +91,11 @@ void Mesh::CreateCube(float	fSize)
 	for(i = 0; i<face[5].nVerts ; i++)
 		face[5].vert[i].colorIndex = 5;
 
+}
+
+float Mesh::get_BS_radius()
+{
+	return this->_bsRadius;
 }
 
 
@@ -297,6 +299,8 @@ void Mesh::CreateSphere(int nSlides, int nStacks, float fRadius) {
 	bound_sphere->centre[0] = 0.0f;
 	bound_sphere->centre[1] = 0.0f;
 	bound_sphere->centre[2] = 0.0f;
+	// Set radius for bounding sphere
+	this->_bsRadius = fRadius;
 
 	float radius = fRadius;
 	int nSlice = nSlides;
@@ -398,7 +402,6 @@ void Mesh::CreateModel(float d, float R1, float R2, float fHeight) {
 			//face[(2 * N + 1)].vert[k].colorIndex = rand() % NUMCOLORS;
 	}
 }
-
 
 void Mesh::CreateDonut(GLfloat R, GLfloat d) {
 	int n = 100;

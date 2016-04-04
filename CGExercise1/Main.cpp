@@ -4,9 +4,15 @@
 #include <sstream>
 #include <iomanip>
 #include "Mesh.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 /* global varible */
 void *font = GLUT_BITMAP_8_BY_13;
 Mesh donut;
+Mesh cylinder;
+
+std::vector<Mesh*> objects;
 
 int mouseX, mouseY;
 bool mouseLeftDown, mouseRightDown, mouseMiddleDown;
@@ -16,6 +22,11 @@ GLfloat tx, ty, rotx, roty;
 
 GLfloat dx, dy, dz;
 GLfloat phi, delta;
+float width = 800, height = 600;
+
+/* Project matrix */
+glm::mat4x4 project_matrix;
+glm::mat4x4 view_matrix;
 
 /* process menu option 'op' */
 void menu(int op) {
@@ -90,7 +101,7 @@ void reshape(int width, int height) {
 	float aspectRatio = (float)width / height;
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	//glFrustum(-aspectRatio, aspectRatio, -1, 1, 0.1, 100);
+	//glFrustum(-aspectRatio, aspectRatio, -1, 1, 1, 100);
 	gluPerspective(60.0f, (float)(width) / height, 1.0f, 1000.0f); // FOV, AspectRatio, NearClip, FarClip
 
 														  // switch to modelview matrix in order to set scene
@@ -133,6 +144,37 @@ void mouseClick(int button, int state, int x, int y) {
 	}
 }
 
+using namespace glm;
+void mouseClick_handler(int button, int state, int mouse_x, int mouse_y) {
+	float x = (2.0f * mouse_x) / width - 1.0f;
+	float y = 1.0f - (2.0f * mouse_y) / height;
+	float z = 1.0f;
+
+	vec3 ray_nds = vec3(x, y, z);
+	vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
+	
+	vec4 ray_eye = glm::inverse(project_matrix) * ray_clip;
+	ray_eye = vec4(ray_eye.x, ray_eye.y, -1.0f, 0.0f);
+	
+	vec4 _ray_wor = glm::inverse(view_matrix) * ray_eye;
+	vec3 ray_wor = glm::vec3(_ray_wor.x, _ray_wor.y, _ray_wor.z);
+	ray_wor = glm::normalize(ray_wor);
+	
+	//printf("Ray vector (%0.2f,%0.2f,%0.2f)\n", ray_wor.x, ray_wor.y, ray_wor, z);
+	// Camara coor
+	vec3 O = glm::vec3(0, 0, 2);
+	// check
+	for each (Mesh* mesh in objects)
+	{
+		BoundSphere* bs = mesh->getBoundingSphere();
+		vec3 C = glm::make_vec3(bs->centre);
+		float r = bs->radius;
+		float b = glm::dot(ray_wor, (O - C));
+		float c = glm::dot(O - C, O - C) - r * r;
+		if (b * b - c >= 0)
+			printf("Collision");
+	}
+}
 /* executed when the mouse moves to position ('x', 'y') */
 void mouseMotion(int x, int y) {
 	if (mouseLeftDown)
@@ -193,14 +235,18 @@ void drawString(const char *str, int x, int y, float color[4], void *font)
 void draw() {
 	glColor3ub(255, 255, 0);
 
-	// Create a sphere
-	donut.DrawColor();
-	/* render the scene here */
+	for (size_t i = 0; i < objects.size(); i++)
+	{
+		objects[i]->DrawColor();
+	}
 
 	float color4[] = { 1,1,1,1 };
 	GLfloat mt[16];
 	glGetFloatv(GL_MODELVIEW_MATRIX, mt);
-	
+	view_matrix = glm::transpose(glm::make_mat4x4(mt));
+	glGetFloatv(GL_PROJECTION_MATRIX, mt);
+	project_matrix = glm::transpose(glm::make_mat4x4(mt));
+
 	glPushMatrix();
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -239,9 +285,9 @@ void display() {
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	gluLookAt(0, 0, 2, 0, 0, 0, 0, 1, 0);
-
+	
 	// Rotate and zoom the camera. This order give you maya-like control
-	glTranslatef(0, 0, cameraDistance);
+	//glTranslatef(0, 0, cameraDistance);
 	//glTranslatef(tx, ty, 0);
 	glRotatef(tx, 1, 0, 0);
 	glRotatef(ty, 0, 1, 0);
@@ -249,9 +295,7 @@ void display() {
 	glPushMatrix();
 
 	// Transform
-	glTranslatef(dx, dy, dz);
-	glRotatef(phi, 0, 1, 0);
-	glRotatef(delta, 0, 0, 1);
+
 	draw();
 
 	glPopMatrix();
@@ -267,7 +311,11 @@ void idle() {
 /* initialize OpenGL settings */
 void initGL(int width, int height) {
 	// Create a mesh
-	donut.CreateDonut(1.0, 0.5);
+	//donut.CreateDonut(1.0, 0.5);
+	cylinder.CreateCube(0.5f);
+	donut.CreateModel(2, 1, 0.5, 1);
+	donut.CreateSphere(100, 100, 1);
+	objects.push_back(&donut);
 
 	reshape(width, height);
 
@@ -293,7 +341,7 @@ int main(int argc, char** argv) {
 	glutKeyboardUpFunc(keyboardUp);
 	glutSpecialFunc(keyboardSpecialDown);
 	glutSpecialUpFunc(keyboardSpecialUp);
-	glutMouseFunc(mouseClick);
+	glutMouseFunc(mouseClick_handler);
 	glutMotionFunc(mouseMotion);
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);

@@ -288,50 +288,16 @@ void Mesh::CreateCylinder(int nSegment, float fHeight, float fRadius) {
 }
 
 void Mesh::CreateSphere(int nSlides, int nStacks, float fRadius) {
-	//numVerts = nSlides * nStacks;
-	//pt = new Point3[numVerts];
+	// Create sphere
+	if (this->bound_sphere != NULL)
+		delete this->bound_sphere;
 
-	//numFaces = numVerts;
-	//face = new Face[numFaces * 2];
+	bound_sphere = new BoundSphere();
+	bound_sphere->radius = fRadius;
+	bound_sphere->centre[0] = 0.0f;
+	bound_sphere->centre[1] = 0.0f;
+	bound_sphere->centre[2] = 0.0f;
 
-	//float const R = 1. / (float)(nSlides - 1);
-	//float const S = 1. / (float)(nStacks - 1);
-	//int t = 0, k = 0;
-
-	//for (int r = 0; r < nSlides; ++r) {
-	//	for (int s = 0; s < nStacks; ++s) {
-	//		float const y = sin(- 2 * PI + PI * r * R);
-	//		float const x = cos(2 * PI * s * S) * sin(PI * r * R);
-	//		float const z = sin(2 * PI * s * S) * sin(PI * r * R);
-
-	//		pt[t++].set(x * fRadius, y * fRadius, z * fRadius);
-	//		//push_indices(indices, sectors, r, s);
-	//		int curRow = r * nStacks;
-	//		int nextRow = (r + 1) * nStacks;
-
-	//		int n = k++;
-	//		face[n].nVerts = 3;
-	//		face[n].vert = new VertexID[face[n].nVerts];
-	//		face[n].vert[0].vertIndex = curRow + s;
-	//		face[n].vert[1].vertIndex = nextRow + s;
-	//		face[n].vert[2].vertIndex = nextRow + s + 1;
-	//		for (size_t z = 0; z < face[n].nVerts; z++)
-	//		{
-	//			face[n].vert[z].colorIndex = rand() % NUMCOLORS;
-	//		}
-
-	//		n = k++;
-	//		face[n].nVerts = 3;
-	//		face[n].vert = new VertexID[face[n].nVerts];
-	//		face[n].vert[0].vertIndex = curRow + s;
-	//		face[n].vert[1].vertIndex = nextRow + s + 1;
-	//		face[n].vert[2].vertIndex = curRow + s + 1;
-	//		for (size_t z = 0; z < face[n].nVerts; z++)
-	//		{
-	//			face[n].vert[z].colorIndex = rand() % NUMCOLORS;
-	//		}
-	//	}
-	//}
 	float radius = fRadius;
 	int nSlice = nSlides;
 	int nStack = nStacks;
@@ -370,8 +336,8 @@ void Mesh::CreateModel(float d, float R1, float R2, float fHeight) {
 	float xO1 = - R1 / (R1 + R2) * d;
 	float xO2 = R2 / (R1 + R2) * d;
 
-	//float phi = acos((R1 - R2) / d);
-	float phi = PI / 2;
+	float phi = acos((R1 - R2) / d);
+	//float phi = PI / 2;
 	int N = 10;
 	float step1 = (2 * PI - 2 * phi) / N;
 	float step2 = (2 * phi) / N;
@@ -380,16 +346,16 @@ void Mesh::CreateModel(float d, float R1, float R2, float fHeight) {
 	int t = 0;
 	for (float i = phi; i < 2 * PI - phi; i += step1)
 	{
-		float x = R1 * cos(phi) + xO1;
-		float z = R1 * sin(phi);
+		float x = R1 * cos(i) + xO1;
+		float z = R1 * sin(i);
 		float y = fHeight / 2;
 		pt[t++].set(x, y, z);
 	}
 
 	for (float i = -phi; i < phi; i+=step2)
 	{
-		float x = R2 * cos(phi) + xO2;
-		float z = R2 * sin(phi);
+		float x = R2 * cos(i) + xO2;
+		float z = R2 * sin(i);
 		float y = fHeight / 2;
 		pt[t++].set(x, y, z);
 	}
@@ -400,18 +366,36 @@ void Mesh::CreateModel(float d, float R1, float R2, float fHeight) {
 	}
 
 	// Init face
-	numFaces = 2 * N;
+	numFaces = 2 * N + 2;
 	face = new Face[numFaces];
 	for (int i = 0; i < 2 * N; i++)
 	{
 		face[i].nVerts = 4;
 		face[i].vert = new VertexID[face[i].nVerts];
 		face[i].vert[0].vertIndex = i;
-		face[i].vert[1].vertIndex = i + 1;
-		face[i].vert[2].vertIndex = i + 1 + 2 * N;
+		face[i].vert[1].vertIndex = (i + 1) % (2 * N);
+		face[i].vert[2].vertIndex = (i + 1) % (2 * N) + 2 * N;
 		face[i].vert[3].vertIndex = i + 2 * N;
 		for (int j = 0; j < face[i].nVerts; j++)
 			face[i].vert[j].colorIndex = rand() % NUMCOLORS;
+	}
+
+	for (int i = 0; i < 2 * N; i++)
+	{
+		face[2 * N].nVerts = 2 * N;
+		face[2 * N].vert = new VertexID[face[2 * N].nVerts];
+
+		face[2 * N + 1].nVerts = 2 * N;
+		face[2 * N + 1].vert = new VertexID[face[2 * N + 1].nVerts];
+		for (int j = 0; j < 2 * N; j++)
+		{
+			face[2 * N].vert[j].vertIndex = j;
+			face[2 * N + 1].vert[j].vertIndex = j + 2 * N;
+		}
+
+		for (int k = 0; k < 2 * N; k++)
+			face[2 * N].vert[k].colorIndex = rand() % NUMCOLORS;
+			//face[(2 * N + 1)].vert[k].colorIndex = rand() % NUMCOLORS;
 	}
 }
 

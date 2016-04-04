@@ -33,13 +33,21 @@ public:
 	}
 };
 
+typedef struct {
+	float radius;
+	float centre[3];
+} BoundSphere;
+
 class Mesh
 {
+private:
+	BoundSphere* bound_sphere = NULL;
+
 public:
-	int		numVerts;
+	int			numVerts;
 	Point3*		pt;
 	
-	int		numFaces;
+	int			numFaces;
 	Face*		face;
 public:
 	Mesh()
@@ -73,6 +81,10 @@ public:
 	void CreateCylinder(int nSegment, float fHeight, float fRadius);
 	void CreateSphere(int nSlides, int nStacks, float fRadius);
 	void CreateCube(float	fSize);
+
+	BoundSphere* getBoundingSphere() {
+		return bound_sphere;
+	}
 };
 
 #endif

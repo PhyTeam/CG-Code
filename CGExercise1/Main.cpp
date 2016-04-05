@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iomanip>
 #include "Mesh.h"
+#include "PickTook.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -32,6 +33,34 @@ int current_mesh = -1;
 /* Project matrix */
 glm::mat4x4 project_matrix;
 glm::mat4x4 view_matrix;
+
+#define SAFE_DELETE(ptr) if(ptr != nullptr) delete ptr
+class Camera {
+public:
+	glm::vec3* position;
+	glm::vec3* up;
+	glm::vec3* centre;
+	
+	Camera(float eyex, float eyey, float eyez, float centrex, float centrey, float centrez) {
+		position = new glm::vec3(eyex, eyey, eyez);
+		up = new glm::vec3(0, 1, 0);
+		centre = new glm::vec3(centrex, centrey, centrez);
+	}
+
+	~Camera() {
+		SAFE_DELETE(position);
+		SAFE_DELETE(up);
+		SAFE_DELETE(centre);
+	}
+
+	void apply() {
+		gluLookAt(position->x, position->y, position->z, centre->x, centre->y, centre->z, up->x, up->y, up->z);
+	}
+
+};
+
+// Declare a camera
+Camera* mainCamera;
 
 /* process menu option 'op' */
 void menu(int op) {
@@ -107,7 +136,7 @@ void reshape(int width, int height) {
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	//glFrustum(-aspectRatio, aspectRatio, -1, 1, 1, 100);
-	gluPerspective(60.0f, (float)(width) / height, 1.0f, 1000.0f); // FOV, AspectRatio, NearClip, FarClip
+	gluPerspective(60.0f, (float)(width) / height, 1.f, 10.f); // FOV, AspectRatio, NearClip, FarClip
 
 														  // switch to modelview matrix in order to set scene
 	glMatrixMode(GL_MODELVIEW);
@@ -151,23 +180,74 @@ void mouseClick(int button, int state, int x, int y) {
 
 using namespace glm;
 
+void generateRay(vec3& r, int x, int y) {
+	GLint viewport[4];
+	GLdouble modelview[16];
+	GLdouble projection[16];
+	GLdouble winX, winY;
+	GLdouble winZ0 = 1.0f; GLdouble winZ1 = 10.0f;
+	GLdouble posX0, posY0, posZ0;
+	GLdouble posX1, posY1, posZ1;
+	glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
+	glGetDoublev(GL_PROJECTION_MATRIX, projection);
+	glGetIntegerv(GL_VIEWPORT, viewport);
+	winX = (GLdouble)x;
+	winY = (GLdouble)viewport[3] - (GLdouble)y;
+	glReadBuffer(GL_BACK);
+	gluUnProject(winX, winY, winZ0,
+		modelview, projection, viewport, &posX0, &posY0, &posZ0);
+	gluUnProject(winX, winY, winZ1,
+		modelview, projection, viewport, &posX1, &posY1, &posZ1);
+
+	r.x = posX1 - posX0;
+	r.y = posY1 - posY0;
+	r.z = posZ1 - posZ0;
+	vec3 t = glm::normalize(r);
+	r = t;
+	printf("r = (%f,%f,%f)", r.x, r.y, r.z);
+}
+
 void ray_casting(int mouse_x, int mouse_y) {
-	float x = (2.0f * mouse_x) / width - 1.0f;
-	float y = 1.0f - (2.0f * mouse_y) / height;
-	float z = 1.0f;
+	// Generate ray
+		float x = (2.0f * mouse_x) / width - 1.0f;
+		float y = 1.0f - (2.0f * mouse_y) / height;
+		float z = 1.0f;
 
-	vec3 ray_nds = vec3(x, y, z);
-	vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
+		vec3 ray_nds = vec3(x, y, z);
+		vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
 
-	vec4 ray_eye = glm::inverse(project_matrix) * ray_clip;
-	ray_eye = vec4(ray_eye.x, ray_eye.y, -1.0f, 0.0f);
+		vec4 ray_eye = glm::inverse(project_matrix) * ray_clip;
+		ray_eye = vec4(ray_eye.x, ray_eye.y, -1.0f, 0.0f);
 
-	vec4 _ray_wor = glm::inverse(view_matrix) * ray_eye;
-	vec3 ray_wor = glm::vec3(_ray_wor.x, _ray_wor.y, _ray_wor.z);
-	ray_wor = glm::normalize(ray_wor);
+		vec4 _ray_wor = glm::inverse(view_matrix) * ray_eye;
+		vec3 ray_wor = glm::vec3(_ray_wor.x, _ray_wor.y, _ray_wor.z);
+		ray_wor = glm::normalize(ray_wor);
+		//printf("r = (%f,%f,%f)\n", ray_wor.x, ray_wor.y, ray_wor.z);
+	//float x, y;
+		vec3 v;
+		//generateRay(v, mouse_x, mouse_y);
+	x = mouse_x; y = mouse_y;
+	static GLint viewport[4];
+	static GLdouble modelview[16];
+	static GLdouble projection[16];
+	GLfloat winX, winY, winZ;
+	GLdouble posX, posY, posZ;
+	glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
+	glGetDoublev(GL_PROJECTION_MATRIX, projection);
+	glGetIntegerv(GL_VIEWPORT, viewport);
+	GLubyte pixel[3];
+	winX = (float)x;
+	winY = (float)viewport[3] - (float)y;
+	glReadBuffer(GL_BACK);
+	//read color and depth
+	glReadPixels(x, int(winY), 1, 1, GL_RGB, GL_UNSIGNED_BYTE, (void *)pixel);
+	glReadPixels(x, int(winY), 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &winZ);
+	gluUnProject(winX, winY, winZ, modelview, projection,
+		viewport, &posX, &posY, &posZ);
+	printf("(%f, %f, %f)\n", posX, posY, posZ);
 
 	// Camara coor
-	vec3 O = glm::vec3(0, 0, 2);
+	vec3 O = *mainCamera->position;
 	// check
 	for (int i = 0; i < objects.size(); i++)
 	{
@@ -188,6 +268,8 @@ void ray_casting(int mouse_x, int mouse_y) {
 void mouseClick_handler(int button, int state, int mouse_x, int mouse_y) {
 	mouseX = mouse_x;
 	mouseY = mouse_y;
+
+	//pick::mouseClick(button, state, mouse_x, mouse_y);
 
 	if (button == GLUT_LEFT_BUTTON)
 	{
@@ -284,15 +366,17 @@ void drawString(const char *str, int x, int y, float color[4], void *font)
 /* render the scene */
 void draw() {
 	glColor3ub(255, 255, 0);
-
+	// Drawing here
+	glMatrixMode(GL_MODELVIEW);
 	for (size_t i = 0; i < objects.size(); i++)
 	{
 		glPushMatrix();
 		Point3* position = objects[i]->position;
 		glTranslated(position->x, position->y, position->z);
-		objects[i]->DrawWireframe();
+		objects[i]->DrawColor();
 		glPopMatrix();
 	}
+	//pick::display();
 
 	float color4[] = { 1,1,1,1 };
 	// Get drawing matrix
@@ -301,9 +385,9 @@ void draw() {
 	view_matrix = glm::transpose(glm::make_mat4x4(mt));
 	glGetFloatv(GL_PROJECTION_MATRIX, mt);
 	project_matrix = glm::transpose(glm::make_mat4x4(mt));
-
-	glPushMatrix();
+	
 	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
 	glLoadIdentity();
 
 	// Draw info
@@ -326,6 +410,7 @@ void draw() {
 	}
 	drawString("GL_MODELMATRIX", 10, 100 + 30, color4, font);
 
+	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
@@ -339,7 +424,8 @@ void display() {
 	// Set the camera orientation
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	gluLookAt(0, 0, 2, 0, 0, 0, 0, 1, 0);
+	//gluLookAt(0, 0, 2, 0, 0, 0, 0, 1, 0);
+	mainCamera->apply();
 	
 	//glRotatef(tx, 1, 0, 0);
 	//glRotatef(ty, 0, 1, 0);
@@ -366,9 +452,9 @@ void initGL(int width, int height) {
 	//donut.CreateDonut(1.0, 0.5);
 	cylinder.CreateCube(0.5f);
 	donut.CreateModel(2, 1, 0.5, 1);
-	donut.CreateSphere(100, 100, 0.25);
+	donut.CreateSphere(10, 10, 0.25);
 
-	cylinder.CreateSphere(100, 100, 0.5);
+	cylinder.CreateSphere(10, 10, 0.5);
 	cylinder.position->set(0.5f, .5f, 0);
 	BoundSphere* bs = cylinder.getBoundingSphere();
 	bs->centre[0] = 0.5f;
@@ -378,7 +464,7 @@ void initGL(int width, int height) {
 
 	Mesh* ms = new Mesh();
 	ms->position->set(-0.5, -0.5, 0);
-	ms->CreateSphere(100, 100, 0.6);
+	ms->CreateSphere(10, 10, 0.6);
 	bs = cylinder.getBoundingSphere();
 	bs->centre[0] = -0.5f;
 	bs->centre[1] = -0.5f;
@@ -386,7 +472,7 @@ void initGL(int width, int height) {
 
 	ms = new Mesh();
 	ms->position->set(-0.5, 0.5, 1);
-	ms->CreateSphere(100, 100, 0.2);
+	ms->CreateSphere(10, 10, 0.2);
 	objects.push_back(ms);
 
 	reshape(width, height);
@@ -396,6 +482,11 @@ void initGL(int width, int height) {
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
+
+	pick::init();
+	// Setup a camera
+	mainCamera = new Camera(0, 0, 4, 0, 0, 0);
+
 }
 
 /* initialize GLUT settings, register callbacks, enter main loop */
@@ -434,5 +525,8 @@ int main(int argc, char** argv) {
 	initGL(800, 600);
 
 	glutMainLoop();
+
+	// Release memory
+	SAFE_DELETE(mainCamera);
 	return 0;
 }
